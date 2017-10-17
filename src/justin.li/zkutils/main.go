@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -33,16 +32,28 @@ func retrieveNode(zkconn *zk.Conn, path string) (*ZkNode, error) {
 		return nil, err
 	}
 	nd := &ZkNode{Path: path}
+	nd.Data = data
 	if stat.NumChildren > 0 {
-
+		children := make([]*ZkNode, 0, stat.NumChildren)
+		if cpaths, _, err := zkconn.Children(path); err != nil {
+			return nil, err
+		} else {
+			for _, cpath := range cpaths {
+				if cnd, err := retrieveNode(zkconn, path+"/"+cpath); err != nil {
+					return nil, err
+				} else {
+					children = append(children, cnd)
+				}
+			}
+			nd.Children = children
+		}
 	}
-	fmt.Printf("%+v %+v\n", data, stat)
 	return nd, nil
 }
 
 func dump(zkconn *zk.Conn, rootPath, filePath string) error {
 	zknd, err := retrieveNode(zkconn, rootPath)
-	if err != nil {
+	if err == nil {
 		if data, err := json.Marshal(zknd); err == nil {
 			return ioutil.WriteFile(filePath, data, os.ModePerm)
 		} else {
